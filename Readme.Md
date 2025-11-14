@@ -1,124 +1,94 @@
 Product Importer API
 
-This is a high-performance Django backend designed to import and manage a large product catalog (500,000+ records) asynchronously.
+A high-performance Django backend designed to import and manage 500,000+ product records asynchronously.
 
-It provides a full-featured REST API for product and webhook management, built to handle large-scale data operations without request timeouts.
+This system provides a robust REST API for product management, CSV imports, webhook testing, and large-scale operations without timeouts.
 
 Tech Stack
-
-Area
-
-Technology
-
-Reason
-
-Backend
-
-Django & Django Rest Framework
-
-For rapid, "sexy simple" & powerful ModelViewSet APIs.
-
-Async Tasks
-
-Celery
-
-To handle the 500,000-record import (Story 1) and bulk delete (Story 3) without hitting 30s timeouts.
-
-Message Broker
-
-Redis
-
-To queue asynchronous tasks for Celery.
-
-Database
-
-PostgreSQL
-
-To handle concurrent connections from the web server & Celery workers (solves SQLite's database is locked error).
-
-Dev Infra
-
-Docker
-
-The simplest way to run production-grade Postgres & Redis locally.
-
+Area	Technology	Reason
+Backend	Django & DRF	Rapid, clean, powerful ModelViewSet APIs
+Async Tasks	Celery	To run 500k+ CSV imports without timeouts
+Message Broker	Redis	Celery’s job queue
+Database	PostgreSQL	Stable concurrent writes (avoids SQLite lock issues)
+Dev Infra	Docker	Easiest way to run Redis & Postgres locally
 Features
+Story 1 & 1A — Async CSV Upload + Progress Tracking
 
-This API successfully implements all backend requirements for all 4 user stories.
+POST /api/products/upload/ accepts .csv, creates an UploadJob, and immediately queues a Celery task.
 
-Story 1 & 1A: Async CSV Upload & Progress
+Celery task:
 
-Async Endpoint: A POST to /api/products/upload/ accepts a .csv file, creates an UploadJob entry, and immediately queues a Celery task, returning a job_id to the client.
+Deduplicates 500k+ rows in-memory using a Python dict.
 
-High Performance Task: The process_csv_upload Celery task de-duplicates the 500k+ records in-memory using a Python dictionary (to fix ON CONFLICT errors) and then uses Django's bulk_create with update_conflicts=True to perform a single, high-speed "UPSERT" database operation.
+Performs a single, fast bulk_create(update_conflicts=True) UPSERT.
 
-Real-time Polling: A GET to /api/job/<uuid:job_id>/status/ allows a client to poll for the job's status (PENDING, PROCESSING, COMPLETED, FAILED).
+Status polling:
 
-Detailed Error Logging: If the Celery task fails, the Exception is caught and its message is saved to the UploadJob's error_message field, making it available to the client via the status endpoint.
+GET /api/job/<uuid:job_id>/status/
 
-Story 2: Full Product Management
+Returns: PENDING, PROCESSING, COMPLETED, FAILED
 
-Full CRUD: The ProductViewSet (/api/products/) provides a complete, ModelViewSet-powered API for GET, POST, PUT, PATCH, and DELETE operations on single products.
+Errors stored in UploadJob.error_message.
 
-Filtering & Search: The endpoint supports database-level filtering (?sku=..., ?active=true) and full-text search (?search=...) out of the box.
+Story 2 — Full Product Management
 
-Pagination: All responses are automatically paginated (default 25 per page) to handle the large dataset efficiently.
+/api/products/ — Full CRUD using DRF’s ModelViewSet
 
-Story 3: Bulk Delete
+Filters:
 
-Async Endpoint: A POST to /api/products/bulk_delete/ (implemented as a custom @action) queues a bulk_delete_products Celery task.
+?sku=ABC123
+?active=true
+?search=laptop
 
-No Timeouts: This runs in the background, allowing the API to respond immediately (HTTP 202) while the database deletion happens asynchronously.
 
-Story 4: Webhook Manager
+Pagination (default: 25 per page)
 
-Full Webhook CRUD: The WebhookViewSet (/api/webhooks/) provides a full API for creating, listing, updating (e.g., enable/disable), and deleting webhooks.
+Story 3 — Bulk Delete
 
-Test Endpoint: A custom @action provides a POST endpoint at /api/webhooks/<id>/test/. This action sends a real test payload (using requests) to the webhook's URL and returns the external service's response code or any timeout/connection errors.
+POST /api/products/bulk_delete/
+
+Runs an async Celery task
+
+API returns 202 Accepted instantly
+
+Story 4 — Webhook Manager
+
+/api/webhooks/ — Full CRUD
+
+POST /api/webhooks/<id>/test/
+
+Sends a real test payload to the webhook URL
+
+Returns success or timeout/connection error
 
 Local Setup & Installation
+1. Prerequisites
 
-You need Docker and Python installed.
+Python 3.10+
 
-1. Prerequisites (Tools)
+Docker Desktop (must be running)
 
-Python 3.10+ & pip
-
-Docker Desktop: Make sure it's running.
-
-2. Backend Setup (Terminals 1, 2, 3)
-
-Clone the repo:
-
+2. Clone Repository
 git clone <your-repo-url>
 cd <your-project-folder>
 
-
-
-
-2. **Install Dependencies:**
-*In your backend `venv`, create one if you haven't:*
-```bash
+3. Backend Setup
+Create & Activate Virtual Environment
 python -m venv venv
-source venv/bin/activate
+source venv/bin/activate   # macOS / Linux
+# OR
+venv\Scripts\activate      # Windows
 
-
-Then, install the requirements:
-
+Install Dependencies
 pip install -r requirements.txt
 
-
-
-(This installs django, djangorestframework, celery, redis, psycopg2-binary, django-filter, django-cors-headers, dj-database-url, requests, and gunicorn.)
-
-Terminal 1: Start Docker Services
+4. Start Required Docker Services
+Terminal 1 — Start Redis
 docker run -d --name prodhub-redis -p 6379:6379 redis
 
+(Postgres is assumed to be running on port 5433)
 
-
-
-Terminal 2: Run the Django Server
-Make sure your product_importer/settings.py is pointed to the Docker DB (using port 5433):
+Update product_importer/settings.py:
 
 DATABASES = {
     'default': {
@@ -127,15 +97,12 @@ DATABASES = {
         'USER': 'prodhub_user',
         'PASSWORD': 'mysecretpassword',
         'HOST': 'localhost',
-        'PORT': '5433', # <-- Use the new port
+        'PORT': '5433',
     }
 }
 
-
-Now, run the server:
-
-cd <your-django-project-folder> # e.g., product_importer
-
+5. Run Django Server
+cd <your-django-project-folder>   # e.g., product_importer
 
 python -m venv venv
 source venv/bin/activate
@@ -143,3 +110,17 @@ source venv/bin/activate
 pip install -r requirements.txt
 python manage.py migrate
 python manage.py runserver
+
+That's it!
+
+You now have:
+
+Async CSV import (500k+ records)
+
+Product CRUD
+
+Bulk delete via Celery
+
+Webhook management + test endpoint
+
+Full Docker-backed Redis & Postgres setup
