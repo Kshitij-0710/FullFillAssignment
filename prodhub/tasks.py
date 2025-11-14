@@ -13,9 +13,9 @@ def process_csv_upload(self, file_content, job_id):
     job.save()
 
     try:
-        products_to_upsert = []
+        products_map = {} 
+
         file = io.StringIO(file_content)
-        
         reader = csv.DictReader(file)
         
         for row in reader:
@@ -25,15 +25,18 @@ def process_csv_upload(self, file_content, job_id):
 
             normalized_sku = sku.strip().upper()
 
-            products_to_upsert.append(Product(
+            product = Product(
                 sku=normalized_sku,
                 name=row.get('name', ''),
                 description=row.get('description', ''),
                 active=True  
-            ))
+            )
+            products_map[normalized_sku] = product
+
+        final_products_list = list(products_map.values())
 
         Product.objects.bulk_create(
-            products_to_upsert,
+            final_products_list, 
             batch_size=5000,        
             update_conflicts=True,  
             unique_fields=['sku'],  
@@ -41,16 +44,13 @@ def process_csv_upload(self, file_content, job_id):
         )
 
         job.status = "COMPLETED"
-        job.progress_message = f"Successfully imported {len(products_to_upsert)} products."
+        job.progress_message = f"Successfully imported {len(final_products_list)} products."
         job.save()
 
     except Exception as e:
         job.status = "FAILED"
         job.error_message = str(e)
         job.save()
-
-
-
 @shared_task
 def bulk_delete_products():
     """
