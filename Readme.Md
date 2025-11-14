@@ -1,95 +1,113 @@
-Product Importer API
+# Product Importer API
 
-A high-performance Django backend designed to import and manage 500,000+ product records asynchronously.
+This is a high-performance Django backend designed to import and manage a large product catalog (500,000+ records) asynchronously.
 
-This system provides a robust REST API for product management, CSV imports, webhook testing, and large-scale operations without timeouts.
+It provides a full-featured REST API for product and webhook management, built to handle large-scale data operations without request timeouts.
 
-Tech Stack
-Area	Technology	Reason
-Backend	Django & DRF	Rapid, clean, powerful ModelViewSet APIs
-Async Tasks	Celery	To run 500k+ CSV imports without timeouts
-Message Broker	Redis	Celery’s job queue
-Database	PostgreSQL	Stable concurrent writes (avoids SQLite lock issues)
-Dev Infra	Docker	Easiest way to run Redis & Postgres locally
-Features
-Story 1 & 1A — Async CSV Upload + Progress Tracking
+---
 
-POST /api/products/upload/ accepts .csv, creates an UploadJob, and immediately queues a Celery task.
+## Tech Stack
 
-Celery task:
+| Area | Technology | Reason |
+|------|------------|--------|
+| Backend | Django & Django Rest Framework | Rapid, simple & powerful ModelViewSet APIs |
+| Async Tasks | Celery | Handles 500k+ CSV import + bulk delete without timeouts |
+| Message Broker | Redis | Job queue for Celery |
+| Database | PostgreSQL | Handles concurrency; avoids SQLite lock issues |
+| Dev Infra | Docker | Easiest way to run Redis & Postgres locally |
 
-Deduplicates 500k+ rows in-memory using a Python dict.
+---
 
-Performs a single, fast bulk_create(update_conflicts=True) UPSERT.
+## Features
 
-Status polling:
+### Story 1 & 1A: Async CSV Upload & Progress
 
-GET /api/job/<uuid:job_id>/status/
+- POST `/api/products/upload/` accepts a CSV, creates an `UploadJob`, and queues a Celery task.
+- Celery deduplicates 500k+ rows in-memory using a Python dict.
+- Uses `bulk_create(update_conflicts=True)` for a single high-speed UPSERT.
+- GET `/api/job/<uuid:job_id>/status/` returns: `PENDING`, `PROCESSING`, `COMPLETED`, `FAILED`.
+- Errors saved to the `UploadJob.error_message` field.
 
-Returns: PENDING, PROCESSING, COMPLETED, FAILED
+### Story 2: Full Product Management
 
-Errors stored in UploadJob.error_message.
+- `/api/products/` supports full CRUD (ModelViewSet).
+- Filtering: `?sku=ABC123`, `?active=true`
+- Search: `?search=laptop`
+- Pagination: default 25 per page.
 
-Story 2 — Full Product Management
+### Story 3: Bulk Delete
 
-/api/products/ — Full CRUD using DRF’s ModelViewSet
+- POST `/api/products/bulk_delete/` queues a Celery task.
+- Returns `202 Accepted` immediately.
 
-Filters:
+### Story 4: Webhook Manager
 
-?sku=ABC123
-?active=true
-?search=laptop
+- `/api/webhooks/` full CRUD.
+- POST `/api/webhooks/<id>/test/` sends a live test payload with `requests`.
 
+---
 
-Pagination (default: 25 per page)
+## Local Setup & Installation
 
-Story 3 — Bulk Delete
+### 1. Prerequisites
 
-POST /api/products/bulk_delete/
+- Python 3.10+
+- Docker Desktop (running)
 
-Runs an async Celery task
+---
 
-API returns 202 Accepted instantly
+### 2. Clone Repository
 
-Story 4 — Webhook Manager
-
-/api/webhooks/ — Full CRUD
-
-POST /api/webhooks/<id>/test/
-
-Sends a real test payload to the webhook URL
-
-Returns success or timeout/connection error
-
-Local Setup & Installation
-1. Prerequisites
-
-Python 3.10+
-
-Docker Desktop (must be running)
-
-2. Clone Repository
+```bash
 git clone <your-repo-url>
 cd <your-project-folder>
+```
 
-3. Backend Setup
-Create & Activate Virtual Environment
+
+```
+
+---
+
+### 3. Create Virtual Environment
+
+```bash
 python -m venv venv
-source venv/bin/activate   # macOS / Linux
-# OR
-venv\Scripts\activate      # Windows
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
 
-Install Dependencies
+---
+
+### 4. Install Dependencies
+
+```bash
 pip install -r requirements.txt
+```
 
-4. Start Required Docker Services
-Terminal 1 — Start Redis
+---
+
+### 5. Start Redis (Docker)
+
+```bash
 docker run -d --name prodhub-redis -p 6379:6379 redis
+```
 
-(Postgres is assumed to be running on port 5433)
+---
 
-Update product_importer/settings.py:
+### 6. Start PostgreSQL (Docker)
 
+```bash
+docker run -d \
+  --name prodhub-postgres \
+  -e POSTGRES_DB=prodhub_db \
+  -e POSTGRES_USER=prodhub_user \
+  -e POSTGRES_PASSWORD=mysecretpassword \
+  -p 5433:5432 \
+  postgres:15
+```
+
+PostgreSQL is already configured in `product_importer/settings.py`:
+
+```python
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
@@ -100,27 +118,150 @@ DATABASES = {
         'PORT': '5433',
     }
 }
+```
 
-5. Run Django Server
-cd <your-django-project-folder>   # e.g., product_importer
+---
 
-python -m venv venv
-source venv/bin/activate
+### 7. Run Database Migrations
 
-pip install -r requirements.txt
+```bash
+cd backend
 python manage.py migrate
+```
+
+---
+
+### 8. Start Celery Worker
+
+Open a new terminal and run:
+
+```bash
+cd backend
+source ../venv/bin/activate  # Activate virtual environment
+celery -A product_importer worker --loglevel=info
+```
+
+---
+
+### 9. Start Django Development Server
+
+In another terminal:
+
+```bash
+cd backend
+source ../venv/bin/activate  # Activate virtual environment
 python manage.py runserver
+```
 
-That's it!
+---
 
-You now have:
+## API Endpoints
 
-Async CSV import (500k+ records)
+### Products
 
-Product CRUD
+- `GET /api/products/` - List all products (with pagination, filtering, search)
+- `POST /api/products/` - Create a new product
+- `GET /api/products/{id}/` - Retrieve a specific product
+- `PUT /api/products/{id}/` - Update a product
+- `DELETE /api/products/{id}/` - Delete a product
+- `POST /api/products/upload/` - Upload CSV file for bulk import
+- `POST /api/products/bulk_delete/` - Bulk delete products
+- `GET /api/job/{job_id}/status/` - Check upload job status
 
-Bulk delete via Celery
+### Webhooks
 
-Webhook management + test endpoint
+- `GET /api/webhooks/` - List all webhooks
+- `POST /api/webhooks/` - Create a new webhook
+- `GET /api/webhooks/{id}/` - Retrieve a specific webhook
+- `PUT /api/webhooks/{id}/` - Update a webhook
+- `DELETE /api/webhooks/{id}/` - Delete a webhook
+- `POST /api/webhooks/{id}/test/` - Test a webhook
 
-Full Docker-backed Redis & Postgres setup
+---
+
+## Testing the API
+
+You can test the API using:
+- **Postman**: Import the endpoints and test
+- **curl**: Command-line HTTP requests
+- **Django REST Framework UI**: Navigate to `http://localhost:8000/api/` in your browser
+
+### Example: Upload CSV
+
+```bash
+curl -X POST http://localhost:8000/api/products/upload/ \
+  -F "file=@products.csv"
+```
+
+### Example: Check Job Status
+
+```bash
+curl http://localhost:8000/api/job/{job_id}/status/
+```
+
+---
+
+## Troubleshooting
+
+### Redis Connection Error
+Ensure Redis container is running:
+```bash
+docker ps | grep prodhub-redis
+```
+
+If not running, start it:
+```bash
+docker start prodhub-redis
+```
+
+### PostgreSQL Connection Error
+Ensure PostgreSQL container is running:
+```bash
+docker ps | grep prodhub-postgres
+```
+
+If not running, start it:
+```bash
+docker start prodhub-postgres
+```
+
+### Celery Worker Not Processing Tasks
+Make sure the Celery worker is running in a separate terminal with the correct app name and settings.
+
+---
+
+## Project Structure
+
+```
+FilloAssignment/
+├── backend/
+│   ├── manage.py
+│   ├── requirements.txt
+│   ├── db.sqlite3
+│   ├── prodhub/          # Main app for product management
+│   │   ├── models.py
+│   │   ├── views.py
+│   │   ├── serializers.py
+│   │   ├── tasks.py      # Celery tasks
+│   │   └── migrations/
+│   ├── webhook/          # Webhook management app
+│   │   ├── models.py
+│   │   ├── views.py
+│   │   └── serializers.py
+│   └── product_importer/ # Django project settings
+│       ├── settings.py
+│       ├── urls.py
+│       ├── celery.py
+│       └── routing.py
+├── frontend/             # React frontend (optional)
+└── products.csv          # Sample CSV file
+```
+
+---
+
+## License
+
+This project is licensed under the MIT License.
+
+
+---
