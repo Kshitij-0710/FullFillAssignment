@@ -4,6 +4,16 @@ A high-performance full-stack application for managing large product catalogs (5
 
 ---
 
+## 🌐 Live Project
+
+| Service | URL |
+|---------|-----|
+| **Frontend** | [https://full-fill-assignment.vercel.app](https://full-fill-assignment.vercel.app) |
+| **Backend API** | [https://fullfill.kshitijmoghe.tech/api/](https://fullfill.kshitijmoghe.tech/api/) |
+| **API Docs (ReDoc)** | [https://fullfill.kshitijmoghe.tech/redoc/](https://fullfill.kshitijmoghe.tech/redoc/) |
+
+---
+
 ## 📁 Project Structure
 
 This project consists of two main components:
