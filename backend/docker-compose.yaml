@@ -24,7 +24,7 @@ services:
       - RDS_DB_NAME=prodhub_db
       - RDS_USERNAME=prodhub_user
       - RDS_PASSWORD=mysecretpassword
-      - RDS_HOSTNAME=db 
+      - RDS_HOSTNAME=db
       - RDS_PORT=5432
       - REDIS_HOSTNAME=redis
       - REDIS_PORT=6379
@@ -34,7 +34,7 @@ services:
       - redis
     volumes:
       - static_volume:/app/staticfiles
-
+      - shared_uploads:/app/uploads       # 🔥 Shared volume
     restart: unless-stopped
 
   worker:
@@ -52,7 +52,10 @@ services:
     depends_on:
       - db
       - redis
+    volumes:
+      - shared_uploads:/app/uploads       # 🔥 Same shared volume as web
 
 volumes:
   postgres_data:
   static_volume:
+  shared_uploads:                         # 🔥 New shared uploads volume

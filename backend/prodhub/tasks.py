@@ -4,43 +4,42 @@ import csv
 import io
 
 @shared_task(bind=True)
-def process_csv_upload(self, file_content, job_id):
+def process_csv_upload(self, file_path, job_id):
     """
-    Processes the CSV file content asynchronously.
+    Processes the CSV file asynchronously without loading large data into Django.
     """
     job = UploadJob.objects.get(job_id=job_id)
     job.status = "PROCESSING"
     job.save()
 
     try:
-        products_map = {} 
+        products_map = {}
 
-        file = io.StringIO(file_content)
-        reader = csv.DictReader(file)
-        
-        for row in reader:
-            sku = row.get('sku')
-            if not sku:
-                continue 
+        with open(file_path, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
 
-            normalized_sku = sku.strip().upper()
+            for row in reader:
+                sku = row.get('sku')
+                if not sku:
+                    continue
 
-            product = Product(
-                sku=normalized_sku,
-                name=row.get('name', ''),
-                description=row.get('description', ''),
-                active=True  
-            )
-            products_map[normalized_sku] = product
+                normalized_sku = sku.strip().upper()
+
+                products_map[normalized_sku] = Product(
+                    sku=normalized_sku,
+                    name=row.get('name', ''),
+                    description=row.get('description', ''),
+                    active=True
+                )
 
         final_products_list = list(products_map.values())
 
         Product.objects.bulk_create(
-            final_products_list, 
-            batch_size=5000,        
-            update_conflicts=True,  
-            unique_fields=['sku'],  
-            update_fields=['name', 'description', 'active'] 
+            final_products_list,
+            batch_size=5000,
+            update_conflicts=True,
+            unique_fields=['sku'],
+            update_fields=['name', 'description', 'active']
         )
 
         job.status = "COMPLETED"
@@ -51,6 +50,7 @@ def process_csv_upload(self, file_content, job_id):
         job.status = "FAILED"
         job.error_message = str(e)
         job.save()
+
 @shared_task
 def bulk_delete_products():
     """
