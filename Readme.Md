@@ -54,7 +54,7 @@ A modern React frontend built with Vite, providing an intuitive UI for product a
 ## 🛠️ Tech Stack Summary
 
 | Layer | Technology | Purpose |
-|-------|------------|---------||
+|-------|------------|---------|
 | Frontend | React + Vite | Fast, modern UI |
 | Backend | Django + DRF | RESTful API |
 | Task Queue | Celery | Async processing |
@@ -64,68 +64,19 @@ A modern React frontend built with Vite, providing an intuitive UI for product a
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Getting Started
 
 ### Prerequisites
 - Python 3.10+
 - Node.js 18+
 - Docker Desktop
 
----
+### Setup Instructions
 
-### 1. Start Backend
+For detailed setup and configuration instructions, please refer to:
 
-```bash
-# Navigate to backend
-cd backend
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Start Redis & PostgreSQL (Docker)
-docker run -d --name prodhub-redis -p 6379:6379 redis
-docker run -d --name prodhub-postgres \
-  -e POSTGRES_DB=prodhub_db \
-  -e POSTGRES_USER=prodhub_user \
-  -e POSTGRES_PASSWORD=mysecretpassword \
-  -p 5433:5432 postgres:15
-
-# Run migrations
-python manage.py migrate
-
-# Start Django server
-python manage.py runserver
-```
-
-In a separate terminal, start Celery worker:
-```bash
-cd backend
-source venv/bin/activate
-celery -A product_importer worker --loglevel=info
-```
-
-Backend will run at: `http://localhost:8000`
-
----
-
-### 2. Start Frontend
-
-```bash
-# Navigate to frontend
-cd frontend
-
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-```
-
-Frontend will run at: `http://localhost:5173`
+- **Backend Setup**: [Readme.Backend.md](./Readme.Backend.md)
+- **Frontend Setup**: [Readme.Frontend.md](./Readme.Frontend.md)
 
 ---
 
@@ -196,14 +147,6 @@ Initial file upload may take 14–25 seconds for large files (80–90MB). This d
 
 ---
 
-## 🤝 Contributing
-
-1. Read the backend documentation in [Readme.Backend.md](./Readme.Backend.md)
-2. Read the frontend documentation in [Readme.Frontend.md](./Readme.Frontend.md)
-3. Follow the setup instructions for both components
-4. Submit pull requests with clear descriptions
-
----
 
 ## 📞 Support
 
